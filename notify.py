@@ -53,6 +53,13 @@ def discover_chat_id():
         if cid is not None:
             chats.append(cid)
     if not chats:
+        # диагностика: если у бота настроен webhook, getUpdates всегда пуст
+        try:
+            wh = api("getWebhookInfo").get("result", {})
+            print("getUpdates пуст. Webhook бота:", wh.get("url") or "(не задан)",
+                  "| pending_updates:", wh.get("pending_update_count"))
+        except Exception as e:
+            print("getUpdates пуст, getWebhookInfo недоступен:", e)
         return "", False
     cid = str(chats[-1])
     with open(CHAT_FILE, "w", encoding="utf-8") as f:
