@@ -1,0 +1,50 @@
+name: Обновление котировок и сигналов
+
+on:
+  schedule:
+    # каждый час в :23 UTC (~:23/MSK — вне пиковых минут)
+    - cron: "23 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установка зависимостей
+        run: pip install matplotlib
+
+      - name: Сбор котировок МосБиржа
+        run: python update.py
+
+      - name: Сохранение данных в репозиторий
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.json signals_state.json
+          git diff --cached --quiet || git commit -m "data: котировки $(date -u +'%d.%m.%Y %H:%M UTC')"
+          git push
+
+      - name: Отправка уведомлений в Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python notify.py
+
+      - name: Сохранение chat_id (если обнаружен)
+        run: |
+          if [ -f chat_id.txt ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add chat_id.txt
+            git diff --cached --quiet || git commit -m "chore: chat_id"
+            git push
+          fi

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Фьючерсы МосБиржа — спреды</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #1a2230; --panel2: #222d40;
+    --text: #e6ebf2; --muted: #8b97a8; --line: #2c3a52;
+    --green: #2e9e5b; --red: #d64545; --accent: #4da3ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  header {
+    padding: 12px 14px 8px; display: flex; flex-wrap: wrap;
+    gap: 6px 14px; align-items: baseline; border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0; }
+  #updated { color: var(--muted); font-size: 12px; }
+  #tabs {
+    display: flex; gap: 6px; padding: 10px 12px 0; overflow-x: auto;
+    -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+  }
+  #tabs button {
+    flex: 0 0 auto; padding: 8px 14px; border-radius: 8px 8px 0 0;
+    border: 1px solid var(--line); border-bottom: none;
+    background: var(--panel); color: var(--muted); font-size: 14px; cursor: pointer;
+  }
+  #tabs button.active { background: var(--panel2); color: var(--text); font-weight: 600; }
+  #tabs button .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 6px; }
+  .dot.open { background: var(--green); } .dot.close { background: var(--red); }
+  main { padding: 12px; }
+  #table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 0 8px 8px 8px; background: var(--panel); }
+  table { width: 100%; border-collapse: collapse; min-width: 520px; }
+  th, td { padding: 9px 10px; text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+  tbody tr { border-top: 1px solid var(--line); cursor: pointer; }
+  tbody tr.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+  tbody tr.sig-open { background: rgba(46, 158, 91, .18); }
+  tbody tr.sig-close { background: rgba(214, 69, 69, .18); }
+  td.tk { font-weight: 600; }
+  .badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
+  .badge.open { background: var(--green); color: #fff; }
+  .badge.close { background: var(--red); color: #fff; }
+  .up { color: var(--green); } .down { color: var(--red); }
+  #chart-panel { margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  #chart-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  #pair-label { font-weight: 600; }
+  #spread-badge { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: var(--panel2); color: var(--muted); }
+  #spread-badge.open { background: var(--green); color: #fff; }
+  #spread-badge.close { background: var(--red); color: #fff; }
+  #hint { color: var(--muted); font-size: 12px; }
+  #chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  canvas { display: block; height: 340px; }
+  #footer { color: var(--muted); font-size: 12px; padding: 12px 14px 24px; }
+  @media (max-width: 640px) {
+    body { font-size: 13px; }
+    canvas { height: 280px; }
+    header h1 { font-size: 15px; width: 100%; }
+    th, td { padding: 8px 7px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Фьючерсы МосБиржа — спреды</h1>
+  <span id="updated">загрузка…</span>
+</header>
+<nav id="tabs"></nav>
+<main>
+  <div id="table-wrap"><table>
+    <thead><tr>
+      <th>Тикер</th><th>Экспирация</th><th>Цена закрытия</th><th>Изм., %</th><th>Объём</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+
+  <div id="chart-panel">
+    <div id="chart-head">
+      <span id="pair-label">График</span>
+      <span id="spread-badge">—</span>
+      <span id="hint">нажмите на строку таблицы, чтобы выбрать контракт (можно два)</span>
+    </div>
+    <div id="chart-scroll"><canvas id="chart" width="3200"></canvas></div>
+  </div>
+</main>
+<div id="footer"></div>
+
+<script>
+"use strict";
+const OPEN_PCT = 2.0, CLOSE_PCT = 1.0, PX_PER_BAR = 16;
+const COLOR_A = "#2196f3", COLOR_B = "#ff9800";
+
+let DATA = null, curGroup = 0, selected = [];
+
+const $ = id => document.getElementById(id);
+const fmt = (n, d) => n == null ? "—" : Number(n).toLocaleString("ru-RU",
+  {minimumFractionDigits: d, maximumFractionDigits: d});
+const fmtVol = n => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(2) + " млн"
+  : n >= 1e3 ? (n / 1e3).toFixed(1) + " тыс." : String(Math.round(n));
+
+function series(map) {  // {ts: close}
+  const out = new Map();
+  for (const secid in map) for (const [t, c] of map[secid]) out.set(t, c);
+  return out;
+}
+
+async function load() {
+  try {
+    const r = await fetch("data.json", {cache: "no-store"});
+    DATA = await r.json();
+  } catch (e) {
+    $("updated").textContent = "не удалось загрузить data.json (" + e + ")";
+    return;
+  }
+  $("updated").textContent = "обновлено: " + DATA.updatedAt;
+  $("footer").textContent = "Источник: " + DATA.source +
+    " · график: " + DATA.historyWeeks + " недель часовых закрытий · " +
+    "сигналы: расхождение > " + OPEN_PCT + "% (зелёный), сужение < " + CLOSE_PCT + "% (красный)";
+  renderTabs();
+  selectGroup(0);
+}
+
+function renderTabs() {
+  const tabs = $("tabs");
+  tabs.innerHTML = "";
+  DATA.groups.forEach((g, i) => {
+    const hasOpen = g.futures.some(f => f.signal === "open");
+    const hasClose = g.futures.some(f => f.signal === "close");
+    const b = document.createElement("button");
+    b.innerHTML = g.title +
+      (hasOpen ? '<span class="dot open"></span>' : "") +
+      (hasClose ? '<span class="dot close"></span>' : "");
+    b.onclick = () => selectGroup(i);
+    tabs.appendChild(b);
+  });
+}
+
+function selectGroup(i) {
+  curGroup = i;
+  selected = [];
+  [...$("tabs").children].forEach((b, j) => b.classList.toggle("active", j === i));
+  renderTable();
+  drawChart();
+}
+
+function renderTable() {
+  const g = DATA.groups[curGroup];
+  const tb = $("tbody");
+  tb.innerHTML = "";
+  g.futures.forEach((f, idx) => {
+    const tr = document.createElement("tr");
+    if (f.signal) tr.classList.add("sig-" + f.signal);
+    tr.dataset.idx = idx;
+    const ch = f.changePct || 0;
+    tr.innerHTML =
+      '<td class="tk">' + f.symbol +
+        (f.signal === "open" ? '<span class="badge open">open</span>' : "") +
+        (f.signal === "close" ? '<span class="badge close">close</span>' : "") +
+      "</td>" +
+      "<td>" + (f.expiry || "—") + "</td>" +
+      "<td>" + fmt(f.close, f.close >= 1000 ? 0 : 4) + "</td>" +
+      '<td class="' + (ch > 0 ? "up" : ch < 0 ? "down" : "") + '">' + fmt(ch, 2) + "</td>" +
+      "<td>" + fmtVol(f.volume) + "</td>";
+    tr.onclick = () => toggleSelect(idx);
+    tb.appendChild(tr);
+  });
+}
+
+function toggleSelect(idx) {
+  const g = DATA.groups[curGroup];
+  const pos = selected.indexOf(idx);
+  if (pos >= 0) selected.splice(pos, 1);
+  else {
+    selected.push(idx);
+    if (selected.length > 2) selected.shift();
+  }
+  [...$("tbody").children].forEach(tr =>
+    tr.classList.toggle("sel", selected.includes(+tr.dataset.idx)));
+  drawChart();
+  $("hint").textContent = selected.length === 2
+    ? "" : "нажмите на строку таблицы, чтобы выбрать контракт (можно два)";
+}
+
+function drawChart() {
+  const g = DATA.groups[curGroup];
+  const cv = $("chart");
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, cv.width, cv.height);
+
+  if (selected.length < 2) {
+    $("pair-label").textContent = g.title;
+    $("spread-badge").textContent = "—";
+    $("spread-badge").className = "";
+    return;
+  }
+  const [ia, ib] = selected;
+  const fa = g.futures[ia], fb = g.futures[ib];
+  const sa = new Map((g.candles[fa.symbol] || []).map(p => [p[0], p[1]]));
+  const sb = new Map((g.candles[fb.symbol] || []).map(p => [p[0], p[1]]));
+  const tsAll = [...new Set([...sa.keys(), ...sb.keys()])].sort((x, y) => x - y);
+  if (!tsAll.length) return;
+
+  const W = Math.max(cv.parentElement.clientWidth, tsAll.length * PX_PER_BAR + 80);
+  cv.width = W;
+  cv.style.width = W + "px";
+  const H = cv.height, padL = 12, padR = 70, padT = 20, padB = 30;
+  const all = [...sa.values(), ...sb.values()];
+  const lo = Math.min(...all) * 0.999, hi = Math.max(...all) * 1.001;
+  const x = i => padL + i * (W - padL - padR) / Math.max(tsAll.length - 1, 1);
+  const y = v => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
+
+  // сетка и ось цен
+  ctx.strokeStyle = "#2c3a52"; ctx.fillStyle = "#8b97a8";
+  ctx.font = "11px sans-serif"; ctx.textAlign = "left";
+  for (let k = 0; k <= 4; k++) {
+    const v = lo + (hi - lo) * k / 4, yy = y(v);
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+    ctx.fillText(fmt(v, v >= 1000 ? 0 : 2), W - padR + 6, yy + 3);
+  }
+  // метки времени (раз в ~15 баров)
+  ctx.textAlign = "center";
+  for (let i = 0; i < tsAll.length; i += Math.max(Math.round(tsAll.length / 8), 15)) {
+    const d = new Date(tsAll[i]);
+    ctx.fillText(d.toLocaleString("ru-RU", {day: "2-digit", month: "2-digit", hour: "2-digit"}),
+      x(i), H - 10);
+  }
+  // «дыры» — разрывы во времени 2–8 часов
+  for (let i = 1; i < tsAll.length; i++) {
+    const gap = tsAll[i] - tsAll[i - 1];
+    if (gap > 2 * 3600e3 && gap <= 8 * 3600e3) {
+      ctx.beginPath(); ctx.arc(x(i), H - padB - 6, 4, 0, 7);
+      ctx.fillStyle = "#4da3ff"; ctx.fill();
+    }
+  }
+
+  const line = (map, color) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath();
+    let started = false;
+    tsAll.forEach((t, i) => {
+      const v = map.get(t);
+      if (v == null) { started = false; return; }
+      if (started) ctx.lineTo(x(i), y(v)); else ctx.moveTo(x(i), y(v));
+      started = true;
+    });
+    ctx.stroke();
+  };
+  line(sa, COLOR_A); line(sb, COLOR_B);
+
+  // легенда
+  ctx.textAlign = "left"; ctx.font = "bold 12px sans-serif";
+  ctx.fillStyle = COLOR_A; ctx.fillText(fa.symbol, padL + 8, padT + 4);
+  ctx.fillStyle = COLOR_B; ctx.fillText(fb.symbol, padL + 120, padT + 4);
+
+  // текущий спред
+  let curSp = null, curTs = null;
+  for (let i = tsAll.length - 1; i >= 0; i--) {
+    const va = sa.get(tsAll[i]), vb = sb.get(tsAll[i]);
+    if (va != null && vb != null && va) { curSp = Math.abs(vb - va) / va * 100; curTs = i; break; }
+  }
+  const badge = $("spread-badge");
+  if (curSp != null) {
+    badge.textContent = "текущий спред " + curSp.toFixed(2) + "%";
+    badge.className = curSp > OPEN_PCT ? "open" : curSp < CLOSE_PCT ? "close" : "";
+  } else { badge.textContent = "—"; badge.className = ""; }
+  $("pair-label").textContent = fa.name + " / " + fb.name;
+
+  // стрелки сигналов — только для СОСЕДНЕЙ отображаемой пары
+  const adjacent = Math.abs(ia - ib) === 1;
+  if (adjacent) {
+    for (const s of g.signals) {
+      if (!((s.a === fa.symbol && s.b === fb.symbol) ||
+            (s.a === fb.symbol && s.b === fa.symbol))) continue;
+      const t = tsAll.indexOf(s.ts);
+      if (t < 0) continue;
+      const va = sa.get(s.ts), vb = sb.get(s.ts);
+      if (va == null || vb == null) continue;
+      const xm = x(t), ym = y((va + vb) / 2);
+      ctx.fillStyle = s.type === "open" ? "#2e9e5b" : "#d64545";
+      ctx.beginPath();
+      if (s.type === "open") { // вверх
+        ctx.moveTo(xm, ym - 14); ctx.lineTo(xm - 7, ym - 2); ctx.lineTo(xm + 7, ym - 2);
+      } else { // вниз
+        ctx.moveTo(xm, ym + 14); ctx.lineTo(xm - 7, ym + 2); ctx.lineTo(xm + 7, ym + 2);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(s.spreadPct + "%", xm, s.type === "open" ? ym - 20 : ym + 28);
+    }
+  } else if (curSp != null) {
+    ctx.fillStyle = "#8b97a8"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("пара несмежная — стрелки сигналов не показываются", W / 2, padT + 14);
+  }
+
+  $("chart-scroll").scrollLeft = W; // вправо, к свежим данным
+}
+
+window.addEventListener("resize", drawChart);
+load();
+</script>
+</body>
+</html>
