@@ -26,9 +26,12 @@ jobs:
         run: python update.py
 
       - name: Сохранение данных в репозиторий
+        env:
+          PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git"
           git add data.json signals_state.json
           git diff --cached --quiet || git commit -m "data: котировки $(date -u +'%d.%m.%Y %H:%M UTC')"
           git push
@@ -40,10 +43,13 @@ jobs:
         run: python notify.py
 
       - name: Сохранение chat_id (если обнаружен)
+        env:
+          PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
         run: |
           if [ -f chat_id.txt ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git"
             git add chat_id.txt
             git diff --cached --quiet || git commit -m "chore: chat_id"
             git push
