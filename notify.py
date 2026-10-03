@@ -37,11 +37,12 @@ def api(method, payload=None, timeout=30):
 
 
 def discover_chat_id():
+    """Возвращает (chat_id, fresh): fresh=True, если id найден через getUpdates."""
     try:
         with open(CHAT_FILE, encoding="utf-8") as f:
             saved = f.read().strip()
             if saved:
-                return saved
+                return saved, False
     except OSError:
         pass
     upd = api("getUpdates")
@@ -52,11 +53,11 @@ def discover_chat_id():
         if cid is not None:
             chats.append(cid)
     if not chats:
-        return ""
+        return "", False
     cid = str(chats[-1])
     with open(CHAT_FILE, "w", encoding="utf-8") as f:
         f.write(cid)
-    return cid
+    return cid, True
 
 
 def make_chart(group, sig, candles, path):
@@ -135,11 +136,21 @@ def main():
         print("Новых сигналов нет.")
         return
 
-    chat_id = CHAT_ID or discover_chat_id()
+    fresh_discover = False
+    if CHAT_ID:
+        chat_id = CHAT_ID
+    else:
+        chat_id, fresh_discover = discover_chat_id()
     if not chat_id:
         print("CHAT_ID неизвестен: напишите боту любое сообщение в Telegram "
               "и перезапустите workflow.")
         return
+    if fresh_discover:
+        api("sendMessage", {"chat_id": chat_id,
+            "text": "✅ Бот подключен к дашборду «Фьючерсы МосБиржа». "
+                    "Сигналы расхождения (>2%) и сужения (<1%) спреда "
+                    "будут приходить сюда с графиком."})
+        print("chat_id обнаружен, тестовое сообщение отправлено.")
 
     group_by_key = {g["key"]: g for g in data.get("groups", [])}
     for sig in notes:
