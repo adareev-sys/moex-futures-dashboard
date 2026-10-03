@@ -131,11 +131,6 @@ def main():
     with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
-    notes = data.get("notifications", [])
-    if not notes:
-        print("Новых сигналов нет.")
-        return
-
     fresh_discover = False
     if CHAT_ID:
         chat_id = CHAT_ID
@@ -151,6 +146,11 @@ def main():
                     "Сигналы расхождения (>2%) и сужения (<1%) спреда "
                     "будут приходить сюда с графиком."})
         print("chat_id обнаружен, тестовое сообщение отправлено.")
+
+    notes = data.get("notifications", [])
+    if not notes:
+        print("Новых сигналов нет.")
+        return
 
     group_by_key = {g["key"]: g for g in data.get("groups", [])}
     for sig in notes:
