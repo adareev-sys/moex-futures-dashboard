@@ -119,9 +119,16 @@ async function load() {
     return;
   }
   $("updated").textContent = "обновлено: " + DATA.updatedAt;
+  const legend = DATA.groups.map(g => {
+    const p = g.params || {};
+    return g.key + ": " + (p.mode === "fix"
+      ? "вход >" + p.open + "%, выход <" + p.close + "%"
+      : "P" + p.p_open + "/P" + p.p_close + " (окно " + p.window_days + "д)");
+  }).join(" · ");
   $("footer").textContent = "Источник: " + DATA.source +
     " · график: " + DATA.historyWeeks + " недель часовых закрытий · " +
-    "сигналы: расхождение > " + OPEN_PCT + "% (зелёный), сужение < " + CLOSE_PCT + "% (красный)";
+    "сигналы по бэктесту — " + legend +
+    " · зелёный = вход (расхождение), красный = выход (сужение)";
   renderTabs();
   selectGroup(0);
 }
@@ -264,9 +271,16 @@ function drawChart() {
     if (va != null && vb != null && va) { curSp = Math.abs(vb - va) / va * 100; curTs = i; break; }
   }
   const badge = $("spread-badge");
+  const thrPair = (g.params && g.params.thresholds)
+    ? (g.params.thresholds[fa.symbol + "|" + fb.symbol] || g.params.thresholds[fb.symbol + "|" + fa.symbol])
+    : null;
   if (curSp != null) {
-    badge.textContent = "текущий спред " + curSp.toFixed(2) + "%";
-    badge.className = curSp > OPEN_PCT ? "open" : curSp < CLOSE_PCT ? "close" : "";
+    badge.textContent = "текущий спред " + curSp.toFixed(2) + "%" +
+      (thrPair && thrPair[0] != null
+        ? " · вход >" + thrPair[0].toFixed(2) + "% · выход <" + thrPair[1].toFixed(2) + "%" : "");
+    badge.className = (thrPair && thrPair[0] != null)
+      ? (curSp > thrPair[0] ? "open" : curSp < thrPair[1] ? "close" : "")
+      : "";
   } else { badge.textContent = "—"; badge.className = ""; }
   $("pair-label").textContent = fa.name + " / " + fb.name;
 

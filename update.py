@@ -20,13 +20,22 @@ from datetime import datetime, timezone, timedelta
 
 MSK = timezone(timedelta(hours=3))
 
-OPEN_PCT = 2.0
-CLOSE_PCT = 1.0
-FRONT_DAYS = 84        # 12 недель для ближайшей пары
-OTHER_DAYS = 14
+# Пороги сигналов по результатам бэктеста (окно 40 дней, адаптивные перцентили):
+#   pct — вход/выход по перцентилям спреда;  fix — фиксированные проценты.
+# Базовые пороги 2%/1% оставлены там, где в бэктесте они обогнали адаптивные
+# (MIX, NG); EUR/USD (ED) исключён из дашборда ранее по запросу пользователя.
+PARAMS = {
+    "BR": {"mode": "pct", "p_open": 78, "p_close": 60, "window_days": 40},
+    "NG": {"mode": "fix", "open": 3.0, "close": 1.0},
+    "Si": {"mode": "pct", "p_open": 82, "p_close": 55, "window_days": 40},
+    "MX": {"mode": "fix", "open": 2.0, "close": 1.0},
+    "GD": {"mode": "pct", "p_open": 78, "p_close": 55, "window_days": 40},
+    "CR": {"mode": "pct", "p_open": 78, "p_close": 60, "window_days": 40},
+}
+
+HISTORY_DAYS = 84        # 12 недель часовых свечей для всех контрактов
 PAGE = 500
-MAX_PAGES_FRONT = 4
-MAX_PAGES_OTHER = 1
+MAX_PAGES = 4
 
 GROUPS = [
     ("BR", "Нефть Brent"),
@@ -133,28 +142,61 @@ def current_spread(series_near, series_far):
     return abs(far[ts] - near[ts]) / near[ts] * 100.0
 
 
-def spread_signals(series_near, series_far):
-    """События перехода спреда по общим часам и финальное состояние."""
+def percentile(vals, p):
+    """Линейная интерполяция перцентиля p (0–100)."""
+    if not vals:
+        return None
+    s = sorted(vals)
+    k = (len(s) - 1) * p / 100.0
+    f = int(k)
+    c = min(f + 1, len(s) - 1)
+    return s[f] + (s[c] - s[f]) * (k - f)
+
+
+def spread_thresholds(spreads, params):
+    """Пороги входа/выхода для списка спредов (каждый [ts, sp]) по параметрам группы."""
+    if params["mode"] == "fix":
+        return params["open"], params["close"]
+    cutoff = None
+    if spreads and params.get("window_days"):
+        cutoff = spreads[-1][0] - params["window_days"] * 24 * 3600 * 1000
+    window = [sp for ts, sp in spreads if cutoff is None or ts >= cutoff]
+    if len(window) < 24:  # мало истории — берём всё, что есть
+        window = [sp for _, sp in spreads]
+    return (percentile(window, params["p_open"]),
+            percentile(window, params["p_close"]))
+
+
+def spread_signals(series_near, series_far, params):
+    """События перехода спреда по общим часам, финальное состояние и текущие пороги.
+
+    Пороги: фиксированные % или перцентили окна (см. PARAMS).
+    """
     near = {t: c for t, c in series_near}
     far = {t: c for t, c in series_far}
     ts_all = sorted(set(near) & set(far))
     if len(ts_all) < 2:
-        return [], "none"
-    events = []
-    state = "none"
-    for i, ts in enumerate(ts_all):
+        return [], "none", (None, None)
+    spreads = []
+    for ts in ts_all:
         if not near[ts]:
             continue
-        sp = abs(far[ts] - near[ts]) / near[ts] * 100.0
+        spreads.append((ts, abs(far[ts] - near[ts]) / near[ts] * 100.0))
+    open_thr, close_thr = spread_thresholds(spreads, params)
+    if open_thr is None or close_thr is None:
+        return [], "none", (None, None)
+    events = []
+    state = "none"
+    for i, (ts, sp) in enumerate(spreads):
         new = state
-        if sp > OPEN_PCT:
+        if sp > open_thr:
             new = "open"
-        elif sp < CLOSE_PCT:
+        elif sp < close_thr:
             new = "close"
         if new != state:
             events.append({"type": new, "bar": i, "ts": ts, "spreadPct": round(sp, 3)})
             state = new
-    return events, state
+    return events, state, (open_thr, close_thr)
 
 
 def main():
@@ -207,10 +249,7 @@ def main():
         candles = {}
         futures = []
         for idx, c in enumerate(contracts):
-            deep = idx < 2
-            closes = hourly_closes(c["secid"],
-                                   FRONT_DAYS if deep else OTHER_DAYS,
-                                   MAX_PAGES_FRONT if deep else MAX_PAGES_OTHER)
+            closes = hourly_closes(c["secid"], HISTORY_DAYS, MAX_PAGES)
             candles[c["secid"]] = closes
             close = closes[-1][1] if closes else c["last"]
             futures.append({
@@ -222,30 +261,34 @@ def main():
                 "changePct": c["changePct"],
                 "volume": c["volume"] if c["volume"] is not None else 0,
                 "signal": "",
-                "deep": deep,
+                "deep": idx < 2,
             })
             time.sleep(0.1)
 
         # сигналы для ВСЕХ соседних пар; окраска строк — по текущему спреду
+        # и порогам группы (перцентили окна или фиксированные % из PARAMS)
+        params = PARAMS[prefix]
         signals = []
         pair_states = {}
+        pair_thresholds = {}
         disp = [set() for _ in futures]
         for i in range(len(futures) - 1):
             a = futures[i]["symbol"]
             b = futures[i + 1]["symbol"]
             ca = candles.get(a, [])
             cb = candles.get(b, [])
-            events, st = spread_signals(ca, cb)
+            events, st, (open_thr, close_thr) = spread_signals(ca, cb, params)
             for e in events:
                 signals.append({"type": e["type"], "a": a, "b": b,
                                 "bar": e["bar"], "ts": e["ts"], "spreadPct": e["spreadPct"]})
             pair_states[a + "|" + b] = st
+            pair_thresholds[a + "|" + b] = [open_thr, close_thr]
             cur = current_spread(ca, cb)
-            if cur is not None:
-                if cur > OPEN_PCT:
+            if cur is not None and open_thr is not None:
+                if cur > open_thr:
                     disp[i].add("open")
                     disp[i + 1].add("open")
-                elif cur < CLOSE_PCT:
+                elif cur < close_thr:
                     disp[i].add("close")
                     disp[i + 1].add("close")
         for i, s in enumerate(disp):
@@ -273,6 +316,7 @@ def main():
         groups_out.append({
             "key": prefix, "title": title,
             "futures": futures, "candles": candles, "signals": signals,
+            "params": {**params, "thresholds": pair_thresholds},
         })
 
     now = datetime.now(MSK)
@@ -289,7 +333,7 @@ def main():
     artifact = {
         "updatedAt": now.strftime("%d.%m.%Y %H:%M MSK"),
         "source": "MOEX ISS (FORTS RFUD): часовые свечи",
-        "historyWeeks": FRONT_DAYS // 7,
+        "historyWeeks": HISTORY_DAYS // 7,
         "groups": groups_out,
         "notifications": new_notifications if had_prev else [],
     }
