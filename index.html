@@ -137,7 +137,7 @@ function render(){
   const g = DATA.groups.find(x=>x.key===cur);
   const fut = {}; g.futures.forEach(f=>fut[f.symbol]=f);
   document.getElementById('gparams').textContent =
-    'пороги активного режима · СП: P78/P60 окно 40 ч лимит 12 ч · ВОЛ: P85/P60 окно 120 ч лимит 96 ч';
+    'пороги активного режима · СП: P78/P60, окно 40 ч, лимит 12 баров · ВОЛ: P85/P60, окно 120 ч, лимит 96 баров';
 
   const pb = document.getElementById('pairs'); pb.innerHTML='';
   g.pairs.forEach(p=>{

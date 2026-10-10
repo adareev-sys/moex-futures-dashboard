@@ -201,7 +201,7 @@ def run_engine(series):
             if thrx is not None and rel < thrx:
                 reason = "цель"
             elif pos["bars"] >= pos["cfg"]["lim"]:
-                reason = f"{pos['cfg']['lim']} час"
+                reason = f"{pos['cfg']['lim']} баров"
             elif last:
                 reason = "экспирация"
             if reason:
@@ -469,7 +469,7 @@ def main():
         "updatedAt": now.strftime("%d.%m.%Y %H:%M MSK"),
         "source": "MOEX ISS (FORTS RFUD): часовые свечи",
         "historyWeeks": HISTORY_DAYS // 7,
-        "scheme": "hybrid: СП P78/P60/окно40/лимит12 ↔ ВОЛ P85/P60/окно120/лимит96, переключение по σ_rel",
+        "scheme": "hybrid: СП P78/P60/окно 40 ч/лимит 12 баров ↔ ВОЛ P85/P60/окно 120 ч/лимит 96 баров, переключение по σ_rel",
         "cost": COST, "fx": round(fx, 4),
         "watchlist": sorted(watch_set),
         "positions": {"open": list(positions["open"].values()), "closed": positions["closed"]},
