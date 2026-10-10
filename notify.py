@@ -20,8 +20,8 @@ CHAT_FILE = "chat_id.txt"
 DATA_PATH = "data.json"
 CHART_POINTS = 300  # последние часовые бары на графике
 
-TYPE_LABEL = {"open": "🟢 РАСХОЖДЕНИЕ — сигнал ОТКРЫТИЕ",
-              "close": "🔴 СУЖЕНИЕ — сигнал ЗАКРЫТИЕ"}
+TYPE_LABEL = {"open": "🟢 ОТКРЫТИЕ позиции",
+              "close": "🔒 ЗАКРЫТИЕ позиции"}
 
 
 def api(method, payload=None, timeout=30):
@@ -150,8 +150,9 @@ def main():
     if fresh_discover:
         api("sendMessage", {"chat_id": chat_id,
             "text": "✅ Бот подключен к дашборду «Фьючерсы МосБиржа». "
-                    "Сигналы расхождения (>2%) и сужения (<1%) спреда "
-                    "будут приходить сюда с графиком."})
+                    "Сигналы календарного спреда (гибрид СП/ВОЛ: P78/P60 окно 40 ч "
+                    "↔ P85/P60 окно 120 ч) будут приходить сюда с графиком. "
+                    "Фильтр пар — watchlist.json, пустой список = все пары."})
         print("chat_id обнаружен, тестовое сообщение отправлено.")
 
     notes = data.get("notifications", [])
@@ -163,16 +164,24 @@ def main():
     for sig in notes:
         g = group_by_key.get(sig["group"], {})
         candles = g.get("candles", {})
-        caption = (f'{TYPE_LABEL.get(sig["type"], sig["type"])}\n'
-                   f'{sig["title"]}: {sig["a"]} / {sig["b"]}\n'
-                   f'Спред: {sig.get("spreadPct", "?")}%')
+        lines = [TYPE_LABEL.get(sig["type"], sig["type"])]
+        lines.append(f'{sig["title"]}: {sig["pair"]}')
+        if sig.get("entryPx"):
+            lines.append(f'Цены: {sig["entryPx"]}')
+        lines.append(f'Спред: {sig.get("spreadPct", "?")}% · режим {sig.get("regime", "?")}')
+        if sig["type"] == "close":
+            lines.append(f'Причина: {sig.get("reason", "?")}')
+            if sig.get("pnlRub") is not None:
+                pnl = sig["pnlRub"]
+                lines.append(f'P&L: {"+" if pnl >= 0 else ""}{pnl:,.0f} ₽'.replace(",", " "))
+        caption = "\n".join(lines)
         chart = "chart.png"
         try:
             if make_chart(g, sig, candles, chart):
                 send_photo(chat_id, chart, caption)
             else:
                 api("sendMessage", {"chat_id": chat_id, "text": caption})
-            print("Отправлено:", sig["a"], "/", sig["b"])
+            print("Отправлено:", sig["pair"])
         except Exception as e:
             print("Ошибка отправки:", e)
 

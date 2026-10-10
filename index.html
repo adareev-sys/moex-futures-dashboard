@@ -1,321 +1,281 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Фьючерсы МосБиржа — спреды</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Фьючерсы МосБиржи — календарный спред</title>
 <style>
-  :root {
-    --bg: #0f1419; --panel: #1a2230; --panel2: #222d40;
-    --text: #e6ebf2; --muted: #8b97a8; --line: #2c3a52;
-    --green: #2e9e5b; --red: #d64545; --accent: #4da3ff;
-  }
+  :root { font-family: var(--kimi-font-sans, -apple-system, "Segoe UI", Roboto, sans-serif); }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  }
-  header {
-    padding: 12px 14px 8px; display: flex; flex-wrap: wrap;
-    gap: 6px 14px; align-items: baseline; border-bottom: 1px solid var(--line);
-  }
-  header h1 { font-size: 17px; margin: 0; }
-  #updated { color: var(--muted); font-size: 12px; }
-  #tabs {
-    display: flex; gap: 6px; padding: 10px 12px 0; overflow-x: auto;
-    -webkit-overflow-scrolling: touch; scrollbar-width: thin;
-  }
-  #tabs button {
-    flex: 0 0 auto; padding: 8px 14px; border-radius: 8px 8px 0 0;
-    border: 1px solid var(--line); border-bottom: none;
-    background: var(--panel); color: var(--muted); font-size: 14px; cursor: pointer;
-  }
-  #tabs button.active { background: var(--panel2); color: var(--text); font-weight: 600; }
-  #tabs button .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 6px; }
-  .dot.open { background: var(--green); } .dot.close { background: var(--red); }
-  main { padding: 12px; }
-  #table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 0 8px 8px 8px; background: var(--panel); }
-  table { width: 100%; border-collapse: collapse; min-width: 520px; }
-  th, td { padding: 9px 10px; text-align: right; white-space: nowrap; }
-  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
-  th { color: var(--muted); font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
-  tbody tr { border-top: 1px solid var(--line); cursor: pointer; }
-  tbody tr.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
-  tbody tr.sig-open { background: rgba(46, 158, 91, .18); }
-  tbody tr.sig-close { background: rgba(214, 69, 69, .18); }
-  td.tk { font-weight: 600; }
-  .badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
-  .badge.open { background: var(--green); color: #fff; }
-  .badge.close { background: var(--red); color: #fff; }
-  .up { color: var(--green); } .down { color: var(--red); }
-  #chart-panel { margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
-  #chart-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-  #pair-label { font-weight: 600; }
-  #spread-badge { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: var(--panel2); color: var(--muted); }
-  #spread-badge.open { background: var(--green); color: #fff; }
-  #spread-badge.close { background: var(--red); color: #fff; }
-  #hint { color: var(--muted); font-size: 12px; }
-  #chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  canvas { display: block; height: 340px; }
-  #footer { color: var(--muted); font-size: 12px; padding: 12px 14px 24px; }
-  @media (max-width: 640px) {
-    body { font-size: 13px; }
-    canvas { height: 280px; }
-    header h1 { font-size: 15px; width: 100%; }
-    th, td { padding: 8px 7px; }
+  body { margin: 0; background: #fff; color: #1a1a1a; }
+  button, input { font: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 16px; font-family: var(--kimi-font-sans, -apple-system, "Segoe UI", Roboto, sans-serif); }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+  .head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .head h1 { font-size: 19px; font-weight: 600; margin: 0; }
+  .meta { font-size: 12px; color: #777; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tab { border: 1px solid #ddd; background: #fff; color: #444; border-radius: 6px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+  .tab[aria-pressed="true"] { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+  .params { font-size: 12px; color: #777; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-weight: 500; font-size: 12px; color: #777; padding: 6px 8px; border-bottom: 1px solid #ddd; white-space: nowrap; }
+  td { padding: 7px 8px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  th.r, td.r { text-align: right; }
+  th.c, td.c { text-align: center; }
+  tr.row-open { background: #e7f6ec; }
+  tr.row-close { background: #fdeceb; }
+  .reg { font-size: 11px; padding: 1px 7px; border-radius: 5px; background: #f0f0f0; }
+  .reg-vola { background: #fff3e0; }
+  .watchbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding: 9px 12px; border: 1px dashed #ddd; border-radius: 10px; font-size: 12px; color: #555; flex-wrap: wrap; }
+  .pos { border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .pos .t { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .pos .d { font-size: 12px; color: #777; }
+  .pnl { font-size: 15px; font-weight: 600; }
+  .pnl.plus, .td-plus { color: #1a9e4b; }
+  .pnl.minus, .td-minus { color: #d64541; }
+  .legend { font-size: 12px; color: #777; margin-top: 10px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 4px 0 14px; vertical-align: baseline; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+  .kpi { border: 1px solid #ddd; border-radius: 10px; padding: 9px 11px; }
+  .kpi .l { font-size: 12px; color: #777; margin-bottom: 2px; }
+  .kpi .v { font-size: 17px; font-weight: 600; }
+  .chartbox { border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px 4px; margin-bottom: 14px; }
+  .chartbox .t { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .tblwrap { overflow-x: auto; }
+  @media (max-width: 720px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .wrap { padding: 10px; }
+    td, th { padding: 6px 5px; }
   }
 </style>
 </head>
 <body>
-<header>
-  <h1>Фьючерсы МосБиржа — спреды</h1>
-  <span id="updated">загрузка…</span>
-</header>
-<nav id="tabs"></nav>
-<main>
-  <div id="table-wrap"><table>
-    <thead><tr>
-      <th>Тикер</th><th>Экспирация</th><th>Цена закрытия</th><th>Изм., %</th><th>Объём</th>
-    </tr></thead>
-    <tbody id="tbody"></tbody>
-  </table></div>
-
-  <div id="chart-panel">
-    <div id="chart-head">
-      <span id="pair-label">График</span>
-      <span id="spread-badge">—</span>
-      <span id="hint">нажмите на строку таблицы, чтобы выбрать контракт (можно два)</span>
-    </div>
-    <div id="chart-scroll"><canvas id="chart" width="3200"></canvas></div>
+<div class="wrap">
+  <div class="head">
+    <h1>Фьючерсы МосБиржи — календарный спред</h1>
+    <span class="meta" id="upd">загрузка…</span>
   </div>
-</main>
-<div id="footer"></div>
+  <div class="meta" id="scheme" style="margin-bottom:12px"></div>
+  <div class="tabs" id="tabs"></div>
 
+  <div id="mainview">
+    <h2>Пары соседних контрактов</h2>
+    <div class="params" id="gparams"></div>
+    <div class="tblwrap"><table>
+      <thead><tr>
+        <th>Пара</th><th class="r">Цена</th><th class="r">Объём</th>
+        <th class="r">Спред</th><th class="r">Вход</th><th class="r">Выход</th>
+        <th class="c">Режим</th><th class="c" title="Отслеживается — уведомления в Telegram">Следить</th>
+      </tr></thead>
+      <tbody id="pairs"></tbody>
+    </table></div>
+    <div class="legend"><span class="dot" style="background:#bfe6cd"></span>сигнал открытия<span class="dot" style="background:#f5c6c4"></span>сигнал закрытия · спред и пороги в %</div>
+    <div class="watchbar">
+      <span id="wltext"></span>
+      <span class="meta">управление: файл watchlist.json в репозитории</span>
+    </div>
+    <h2 style="margin-top:18px">Открытые позиции</h2>
+    <div id="positions"></div>
+  </div>
+
+  <div id="reportview" style="display:none">
+    <h2>Отчёт по прибыли</h2>
+    <div class="tabs" id="rfilters" style="margin-bottom:14px"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="chartbox">
+      <div class="t">Накопительная прибыль по закрытым сделкам, ₽</div>
+      <svg id="equity" width="100%" height="170" viewBox="0 0 600 170" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr>
+        <th>Пара</th><th>Вход</th><th>Выход</th><th class="r">Спред</th>
+        <th class="r">Часов</th><th class="r">P&amp;L, ₽</th><th>Статус</th>
+      </tr></thead>
+      <tbody id="trades"></tbody>
+    </table></div>
+  </div>
+</div>
 <script>
-"use strict";
-const OPEN_PCT = 2.0, CLOSE_PCT = 1.0, PX_PER_BAR = 16;
-const COLOR_A = "#2196f3", COLOR_B = "#ff9800";
+let DATA = null;
+let cur = null;
+let repFilter = 'all';
 
-let DATA = null, curGroup = 0, selected = [];
+const DEC = {BR:2, NG:3, Si:0, MX:0, GD:1, CR:3};
 
-const $ = id => document.getElementById(id);
-const fmt = (n, d) => n == null ? "—" : Number(n).toLocaleString("ru-RU",
-  {minimumFractionDigits: d, maximumFractionDigits: d});
-const fmtVol = n => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(2) + " млн"
-  : n >= 1e3 ? (n / 1e3).toFixed(1) + " тыс." : String(Math.round(n));
+function px(gk, n){ return n==null?'—':Number(n).toLocaleString('ru-RU',{minimumFractionDigits:DEC[gk]??2, maximumFractionDigits:DEC[gk]??2}); }
+function vol(n){ return n==null?'—':Number(n).toLocaleString('ru-RU'); }
+function sp(n){ return n==null?'—':Number(n).toFixed(2); }
+function rub(n){ n=Math.round(n); return (n>=0?'+':'−')+Math.abs(n).toLocaleString('ru-RU'); }
+function dt(ms){ return ms?new Date(ms).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'; }
 
-function series(map) {  // {ts: close}
-  const out = new Map();
-  for (const secid in map) for (const [t, c] of map[secid]) out.set(t, c);
-  return out;
+function renderTabs(){
+  const el = document.getElementById('tabs');
+  el.innerHTML = '';
+  DATA.groups.forEach(g=>{
+    const b = document.createElement('button');
+    b.className='tab'; b.textContent=g.title; b.setAttribute('aria-pressed', g.key===cur?'true':'false');
+    b.onclick=()=>{cur=g.key; render();};
+    el.appendChild(b);
+  });
+  const r = document.createElement('button');
+  r.className='tab'; r.textContent='Отчёт'; r.setAttribute('aria-pressed', cur==='_rep'?'true':'false');
+  r.onclick=()=>{cur='_rep'; render();};
+  el.appendChild(r);
 }
 
-async function load() {
-  try {
-    const r = await fetch("data.json", {cache: "no-store"});
-    DATA = await r.json();
-  } catch (e) {
-    $("updated").textContent = "не удалось загрузить data.json (" + e + ")";
-    return;
-  }
-  $("updated").textContent = "обновлено: " + DATA.updatedAt;
-  const legend = DATA.groups.map(g => {
-    const p = g.params || {};
-    return g.key + ": " + (p.mode === "fix"
-      ? "вход >" + p.open + "%, выход <" + p.close + "%"
-      : "P" + p.p_open + "/P" + p.p_close + " (окно " + p.window_days + "д)");
-  }).join(" · ");
-  $("footer").textContent = "Источник: " + DATA.source +
-    " · график: " + DATA.historyWeeks + " недель часовых закрытий · " +
-    "сигналы по бэктесту — " + legend +
-    " · зелёный = вход (расхождение), красный = выход (сужение)";
+function render(){
   renderTabs();
-  selectGroup(0);
-}
+  document.getElementById('upd').textContent = 'обновлено ' + DATA.updatedAt + ' · курс ' + DATA.fx;
+  document.getElementById('scheme').textContent = DATA.scheme + ' · издержки ' + DATA.cost + ' ₽/круг';
+  const isRep = cur==='_rep';
+  document.getElementById('mainview').style.display = isRep?'none':'';
+  document.getElementById('reportview').style.display = isRep?'':'none';
+  if(isRep){ renderReport(); return; }
 
-function renderTabs() {
-  const tabs = $("tabs");
-  tabs.innerHTML = "";
-  DATA.groups.forEach((g, i) => {
-    const hasOpen = g.futures.some(f => f.signal === "open");
-    const hasClose = g.futures.some(f => f.signal === "close");
-    const b = document.createElement("button");
-    b.innerHTML = g.title +
-      (hasOpen ? '<span class="dot open"></span>' : "") +
-      (hasClose ? '<span class="dot close"></span>' : "");
-    b.onclick = () => selectGroup(i);
-    tabs.appendChild(b);
+  const g = DATA.groups.find(x=>x.key===cur);
+  const fut = {}; g.futures.forEach(f=>fut[f.symbol]=f);
+  document.getElementById('gparams').textContent =
+    'пороги активного режима · СП: P78/P60 окно 40 ч лимит 12 ч · ВОЛ: P85/P60 окно 120 ч лимит 96 ч';
+
+  const pb = document.getElementById('pairs'); pb.innerHTML='';
+  g.pairs.forEach(p=>{
+    const fa=fut[p.a], fb=fut[p.b];
+    const tr = document.createElement('tr');
+    if(p.spread!=null && p.open!=null && p.spread>=p.open) tr.className='row-open';
+    else if(p.spread!=null && p.close!=null && p.spread<=p.close) tr.className='row-close';
+    tr.innerHTML = `
+      <td>${p.pair}</td>
+      <td class="r num">${px(g.key,fa?.close)} / ${px(g.key,fb?.close)}</td>
+      <td class="r num">${vol(fa?.volume)} / ${vol(fb?.volume)}</td>
+      <td class="r num">${sp(p.spread)}</td>
+      <td class="r num">${p.open==null?'—':p.open.toFixed(2)}</td>
+      <td class="r num">${p.close==null?'—':p.close.toFixed(2)}</td>
+      <td class="c"><span class="reg ${p.regime==='ВОЛ'?'reg-vola':''}">${p.regime}</span></td>
+      <td class="c">${p.watched?'✓':'—'}</td>`;
+    pb.appendChild(tr);
+  });
+
+  const wl = DATA.watchlist || [];
+  document.getElementById('wltext').textContent = wl.length
+    ? `Уведомления Telegram: только выбранные пары (${wl.length})`
+    : 'Уведомления Telegram: все пары';
+
+  const box = document.getElementById('positions');
+  const open = DATA.positions.open.filter(o=>o.group===g.key);
+  box.innerHTML = '';
+  if(!open.length){ box.innerHTML = '<div class="meta">нет открытых позиций</div>'; }
+  open.forEach(o=>{
+    const d = document.createElement('div');
+    d.className='pos';
+    d.innerHTML = `<div class="t">${o.pair} <span class="meta">· режим ${o.regime} · ${o.direction>0?'шорт дальний / лонг ближний':'лонг дальний / шорт ближний'}</span></div>
+      <div class="d">вход ${dt(o.entryTs)} · спред ${Number(o.entrySpread).toLocaleString('ru-RU',{maximumFractionDigits:DEC[g.key]??2})} → сейчас ${Number(o.curSpread).toLocaleString('ru-RU',{maximumFractionDigits:DEC[g.key]??2})} · в позиции ${o.bars} ч из ${o.lim}</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px">
+        <span class="d">цены входа ${o.entryPx}</span>
+        <span class="pnl ${o.floatRub>=0?'plus':'minus'} num">${rub(o.floatRub)} ₽</span>
+      </div>`;
+    box.appendChild(d);
   });
 }
 
-function selectGroup(i) {
-  curGroup = i;
-  selected = [];
-  [...$("tabs").children].forEach((b, j) => b.classList.toggle("active", j === i));
-  renderTable();
-  drawChart();
+function baseDate(){
+  const m = DATA.updatedAt.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  return m ? new Date(+m[3], +m[2]-1, +m[1]) : new Date();
+}
+function inPeriod(entryTs, f){
+  if(f==='all') return true;
+  const d = new Date(entryTs), b = baseDate();
+  if(f==='day')   return d.toDateString()===b.toDateString();
+  if(f==='week')  return d >= new Date(b.getTime()-6*864e5);
+  if(f==='month') return d.getFullYear()===b.getFullYear() && d.getMonth()===b.getMonth();
+  return true;
 }
 
-function renderTable() {
-  const g = DATA.groups[curGroup];
-  const tb = $("tbody");
-  tb.innerHTML = "";
-  g.futures.forEach((f, idx) => {
-    const tr = document.createElement("tr");
-    if (f.signal) tr.classList.add("sig-" + f.signal);
-    tr.dataset.idx = idx;
-    const ch = f.changePct || 0;
-    tr.innerHTML =
-      '<td class="tk">' + f.symbol +
-        (f.signal === "open" ? '<span class="badge open">open</span>' : "") +
-        (f.signal === "close" ? '<span class="badge close">close</span>' : "") +
-      "</td>" +
-      "<td>" + (f.expiry || "—") + "</td>" +
-      "<td>" + fmt(f.close, f.close >= 1000 ? 0 : 4) + "</td>" +
-      '<td class="' + (ch > 0 ? "up" : ch < 0 ? "down" : "") + '">' + fmt(ch, 2) + "</td>" +
-      "<td>" + fmtVol(f.volume) + "</td>";
-    tr.onclick = () => toggleSelect(idx);
+function renderReport(){
+  const chips = [['day','День'],['week','Неделя'],['month','Месяц'],['all','Все']];
+  const fb = document.getElementById('rfilters'); fb.innerHTML='';
+  chips.forEach(([k,l])=>{
+    const b=document.createElement('button');
+    b.className='tab'; b.textContent=l; b.setAttribute('aria-pressed', repFilter===k?'true':'false');
+    b.onclick=()=>{repFilter=k; renderReport();};
+    fb.appendChild(b);
+  });
+
+  const closed = DATA.positions.closed.filter(t=>inPeriod(t.entryTs, repFilter));
+  const openAll = DATA.positions.open;
+  const net = closed.reduce((s,t)=>s+t.pnlRub,0);
+  const win = closed.length ? closed.filter(t=>t.pnlRub>0).length/closed.length : 0;
+  const floatPnl = openAll.reduce((s,t)=>s+(t.floatRub||0),0);
+  let cum=0, peak=0, dd=0;
+  const curve = closed.map(t=>{cum+=t.pnlRub; peak=Math.max(peak,cum); dd=Math.min(dd,cum-peak); return cum;});
+  const kdata = [
+    ['Закрыто сделок', closed.length],
+    ['Рейтинг', Math.round(win*100)+'%'],
+    ['Нетто, ₽', rub(net), net>=0?'plus':'minus'],
+    ['Плавающий, ₽', rub(floatPnl), floatPnl>=0?'plus':'minus'],
+    ['Просадка, ₽', rub(dd), 'minus']
+  ];
+  const kb = document.getElementById('kpis'); kb.innerHTML='';
+  kdata.forEach(([l,v,c])=>{
+    const d=document.createElement('div'); d.className='kpi';
+    d.innerHTML=`<div class="l">${l}</div><div class="v num ${c||''}">${v}</div>`;
+    kb.appendChild(d);
+  });
+
+  drawEquity(curve.length?curve:[0]);
+
+  const tb = document.getElementById('trades'); tb.innerHTML='';
+  const row = t => {
+    const tr=document.createElement('tr');
+    if(t.open) tr.style.background='#f2faf4';
+    const sDec = {BR:2,NG:3,Si:0,MX:0,GD:1,CR:3}[t.group] ?? 2;
+    const fmtS = v => Number(v).toLocaleString('ru-RU',{maximumFractionDigits:sDec});
+    tr.innerHTML=`<td>${t.pair}</td><td class="num">${dt(t.entryTs)}</td><td class="num">${t.open?'—':dt(t.exitTs)}</td>
+      <td class="r num">${t.open?fmtS(t.entrySpread)+' → '+fmtS(t.curSpread):fmtS(t.entrySpread)+' → '+fmtS(t.exitSpread)}</td>
+      <td class="r num">${t.bars}</td>
+      <td class="r num ${t.pnlRub>=0?'td-plus':'td-minus'}">${rub(t.pnlRub)}</td>
+      <td class="meta">${t.status}</td>`;
     tb.appendChild(tr);
-  });
-}
-
-function toggleSelect(idx) {
-  const g = DATA.groups[curGroup];
-  const pos = selected.indexOf(idx);
-  if (pos >= 0) selected.splice(pos, 1);
-  else {
-    selected.push(idx);
-    if (selected.length > 2) selected.shift();
-  }
-  [...$("tbody").children].forEach(tr =>
-    tr.classList.toggle("sel", selected.includes(+tr.dataset.idx)));
-  drawChart();
-  $("hint").textContent = selected.length === 2
-    ? "" : "нажмите на строку таблицы, чтобы выбрать контракт (можно два)";
-}
-
-function drawChart() {
-  const g = DATA.groups[curGroup];
-  const cv = $("chart");
-  const ctx = cv.getContext("2d");
-  ctx.clearRect(0, 0, cv.width, cv.height);
-
-  if (selected.length < 2) {
-    $("pair-label").textContent = g.title;
-    $("spread-badge").textContent = "—";
-    $("spread-badge").className = "";
-    return;
-  }
-  const [ia, ib] = selected;
-  const fa = g.futures[ia], fb = g.futures[ib];
-  const sa = new Map((g.candles[fa.symbol] || []).map(p => [p[0], p[1]]));
-  const sb = new Map((g.candles[fb.symbol] || []).map(p => [p[0], p[1]]));
-  const tsAll = [...new Set([...sa.keys(), ...sb.keys()])].sort((x, y) => x - y);
-  if (!tsAll.length) return;
-
-  const W = Math.max(cv.parentElement.clientWidth, tsAll.length * PX_PER_BAR + 80);
-  cv.width = W;
-  cv.style.width = W + "px";
-  const H = cv.height, padL = 12, padR = 70, padT = 20, padB = 30;
-  const all = [...sa.values(), ...sb.values()];
-  const lo = Math.min(...all) * 0.999, hi = Math.max(...all) * 1.001;
-  const x = i => padL + i * (W - padL - padR) / Math.max(tsAll.length - 1, 1);
-  const y = v => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
-
-  // сетка и ось цен
-  ctx.strokeStyle = "#2c3a52"; ctx.fillStyle = "#8b97a8";
-  ctx.font = "11px sans-serif"; ctx.textAlign = "left";
-  for (let k = 0; k <= 4; k++) {
-    const v = lo + (hi - lo) * k / 4, yy = y(v);
-    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
-    ctx.fillText(fmt(v, v >= 1000 ? 0 : 2), W - padR + 6, yy + 3);
-  }
-  // метки времени (раз в ~15 баров)
-  ctx.textAlign = "center";
-  for (let i = 0; i < tsAll.length; i += Math.max(Math.round(tsAll.length / 8), 15)) {
-    const d = new Date(tsAll[i]);
-    ctx.fillText(d.toLocaleString("ru-RU", {day: "2-digit", month: "2-digit", hour: "2-digit"}),
-      x(i), H - 10);
-  }
-  // «дыры» — разрывы во времени 2–8 часов
-  for (let i = 1; i < tsAll.length; i++) {
-    const gap = tsAll[i] - tsAll[i - 1];
-    if (gap > 2 * 3600e3 && gap <= 8 * 3600e3) {
-      ctx.beginPath(); ctx.arc(x(i), H - padB - 6, 4, 0, 7);
-      ctx.fillStyle = "#4da3ff"; ctx.fill();
-    }
-  }
-
-  const line = (map, color) => {
-    ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath();
-    let started = false;
-    tsAll.forEach((t, i) => {
-      const v = map.get(t);
-      if (v == null) { started = false; return; }
-      if (started) ctx.lineTo(x(i), y(v)); else ctx.moveTo(x(i), y(v));
-      started = true;
-    });
-    ctx.stroke();
   };
-  line(sa, COLOR_A); line(sb, COLOR_B);
-
-  // легенда
-  ctx.textAlign = "left"; ctx.font = "bold 12px sans-serif";
-  ctx.fillStyle = COLOR_A; ctx.fillText(fa.symbol, padL + 8, padT + 4);
-  ctx.fillStyle = COLOR_B; ctx.fillText(fb.symbol, padL + 120, padT + 4);
-
-  // текущий спред
-  let curSp = null, curTs = null;
-  for (let i = tsAll.length - 1; i >= 0; i--) {
-    const va = sa.get(tsAll[i]), vb = sb.get(tsAll[i]);
-    if (va != null && vb != null && va) { curSp = Math.abs(vb - va) / va * 100; curTs = i; break; }
-  }
-  const badge = $("spread-badge");
-  const thrPair = (g.params && g.params.thresholds)
-    ? (g.params.thresholds[fa.symbol + "|" + fb.symbol] || g.params.thresholds[fb.symbol + "|" + fa.symbol])
-    : null;
-  if (curSp != null) {
-    badge.textContent = "текущий спред " + curSp.toFixed(2) + "%" +
-      (thrPair && thrPair[0] != null
-        ? " · вход >" + thrPair[0].toFixed(2) + "% · выход <" + thrPair[1].toFixed(2) + "%" : "");
-    badge.className = (thrPair && thrPair[0] != null)
-      ? (curSp > thrPair[0] ? "open" : curSp < thrPair[1] ? "close" : "")
-      : "";
-  } else { badge.textContent = "—"; badge.className = ""; }
-  $("pair-label").textContent = fa.name + " / " + fb.name;
-
-  // стрелки сигналов — только для СОСЕДНЕЙ отображаемой пары
-  const adjacent = Math.abs(ia - ib) === 1;
-  if (adjacent) {
-    for (const s of g.signals) {
-      if (!((s.a === fa.symbol && s.b === fb.symbol) ||
-            (s.a === fb.symbol && s.b === fa.symbol))) continue;
-      const t = tsAll.indexOf(s.ts);
-      if (t < 0) continue;
-      const va = sa.get(s.ts), vb = sb.get(s.ts);
-      if (va == null || vb == null) continue;
-      const xm = x(t), ym = y((va + vb) / 2);
-      ctx.fillStyle = s.type === "open" ? "#2e9e5b" : "#d64545";
-      ctx.beginPath();
-      if (s.type === "open") { // вверх
-        ctx.moveTo(xm, ym - 14); ctx.lineTo(xm - 7, ym - 2); ctx.lineTo(xm + 7, ym - 2);
-      } else { // вниз
-        ctx.moveTo(xm, ym + 14); ctx.lineTo(xm - 7, ym + 2); ctx.lineTo(xm + 7, ym + 2);
-      }
-      ctx.closePath(); ctx.fill();
-      ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText(s.spreadPct + "%", xm, s.type === "open" ? ym - 20 : ym + 28);
-    }
-  } else if (curSp != null) {
-    ctx.fillStyle = "#8b97a8"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText("пара несмежная — стрелки сигналов не показываются", W / 2, padT + 14);
-  }
-
-  $("chart-scroll").scrollLeft = W; // вправо, к свежим данным
+  openAll.forEach(o=>row({...o, open:true, pnlRub:o.floatRub,
+    status:`открыта · ${o.bars} ч`}));
+  [...closed].reverse().forEach(t=>row({...t, status:'закрыта · '+t.reason}));
 }
 
-window.addEventListener("resize", drawChart);
-load();
+function drawEquity(points){
+  const svg = document.getElementById('equity');
+  const W=600, H=170, P={l:56,r:10,t:8,b:18};
+  let mn=Math.min(0,...points), mx=Math.max(0,...points);
+  if(mx===mn){mx=mn+1;}
+  const x=i=>P.l+(W-P.l-P.r)*(points.length===1?0.5:i/(points.length-1));
+  const y=v=>P.t+(H-P.t-P.b)*(1-(v-mn)/(mx-mn));
+  const line = points.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const zero = y(0).toFixed(1);
+  const step = Math.max(1, Math.ceil((mx-mn)/4));
+  let grid='';
+  for(let v=Math.ceil(mn/step)*step; v<=mx; v+=step){
+    grid+=`<line x1="${P.l}" y1="${y(v)}" x2="${W-P.r}" y2="${y(v)}" stroke="#eee" stroke-width="0.6"/>
+           <text x="${P.l-6}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="10" fill="#999" class="num">${v.toLocaleString('ru-RU')}</text>`;
+  }
+  const area = `${line} L${x(points.length-1).toFixed(1)},${zero} L${x(0).toFixed(1)},${zero} Z`;
+  svg.innerHTML = `
+    <defs><clipPath id="clip"><rect x="${P.l}" y="${P.t}" width="${W-P.l-P.r}" height="${H-P.t-P.b}"/></clipPath></defs>
+    ${grid}
+    <line x1="${P.l}" y1="${zero}" x2="${W-P.r}" y2="${zero}" stroke="#bbb" stroke-width="1"/>
+    <path d="${area}" fill="#2f6fed" opacity="0.10" clip-path="url(#clip)"/>
+    <path d="${line}" fill="none" stroke="#2f6fed" stroke-width="1.8" clip-path="url(#clip)"/>
+    ${points.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.4" fill="#2f6fed"/>`).join('')}`;
+}
+
+fetch('data.json').then(r=>r.json()).then(d=>{
+  DATA = d;
+  if(!DATA.positions) DATA.positions = {open:[],closed:[]};
+  cur = DATA.groups[0].key;
+  render();
+}).catch(e=>{
+  document.getElementById('upd').textContent = 'ошибка загрузки data.json: '+e;
+});
 </script>
 </body>
 </html>
