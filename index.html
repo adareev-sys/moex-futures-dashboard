@@ -37,7 +37,7 @@
   .pnl.minus, .td-minus { color: #d64541; }
   .legend { font-size: 12px; color: #777; margin-top: 10px; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 4px 0 14px; vertical-align: baseline; }
-  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 14px; }
   .kpi { border: 1px solid #ddd; border-radius: 10px; padding: 9px 11px; }
   .kpi .l { font-size: 12px; color: #777; margin-bottom: 2px; }
   .kpi .v { font-size: 17px; font-weight: 600; }
@@ -83,6 +83,12 @@
   <div id="reportview" style="display:none">
     <h2>Отчёт по прибыли</h2>
     <div class="tabs" id="rfilters" style="margin-bottom:14px"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;color:#777">
+      <label for="capital">Капитал, ₽:</label>
+      <input id="capital" type="number" min="10000" step="50000" value="1000000"
+             style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;width:140px;font-size:13px">
+      <span id="cret" class="num" style="color:#1a1a1a;font-weight:600"></span>
+    </div>
     <div class="kpis" id="kpis"></div>
     <div class="chartbox">
       <div class="t">Накопительная прибыль по закрытым сделкам, ₽</div>
@@ -209,10 +215,16 @@ function renderReport(){
   const floatPnl = openAll.reduce((s,t)=>s+(t.floatRub||0),0);
   let cum=0, peak=0, dd=0;
   const curve = closed.map(t=>{cum+=t.pnlRub; peak=Math.max(peak,cum); dd=Math.min(dd,cum-peak); return cum;});
+  const capEl = document.getElementById('capital');
+  const cap = Math.max(1, parseFloat(capEl.value) || 1000000);
+  capEl.oninput = () => renderReport();
+  const ret = net / cap * 100;
+  document.getElementById('cret').textContent = 'Доходность за период: ' + (ret>=0?'+':'') + ret.toFixed(2) + '%';
   const kdata = [
     ['Закрыто сделок', closed.length],
     ['Рейтинг', Math.round(win*100)+'%'],
     ['Нетто, ₽', rub(net), net>=0?'plus':'minus'],
+    ['Доходность', (ret>=0?'+':'')+ret.toFixed(2)+'%', ret>=0?'plus':'minus'],
     ['Плавающий, ₽', rub(floatPnl), floatPnl>=0?'plus':'minus'],
     ['Просадка, ₽', rub(dd), 'minus']
   ];
