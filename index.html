@@ -49,12 +49,43 @@
     .wrap { padding: 10px; }
     td, th { padding: 6px 5px; }
   }
+
+  /* ---- тёмная тема (чёрный фон) ---- */
+  html, body { background: #0b0b0d; } body { color: #e9e9ec; }
+  .head h1 { color:#e9e9ec; }
+  .wrap { background: #0b0b0d; color: #e9e9ec; min-height: 100vh; }
+  .meta, .params, .legend, .pos .d { color: #8b8b92; }
+  .head h1 { color: #e9e9ec; }
+  .scheme { color: #8b8b92; }
+  .tab { border-color: #33333a; color: #b9b9c0; background: transparent; }
+  .tab[aria-pressed="true"] { background: #e9e9ec; color: #111; border-color: #e9e9ec; }
+  h2 { color: #e9e9ec; }
+  th { color: #8b8b92; border-bottom-color: #33333a; }
+  td { border-bottom-color: #232329; }
+  tr.row-open { background: rgba(64, 190, 110, 0.16); }
+  tr.row-close { background: rgba(224, 82, 74, 0.16); }
+  .reg { background: #2a2a31; color: #cfcfd6; }
+  .reg-vola { background: #4a3419; color: #f0b35c; }
+  .watchbar { border-color: #33333a; color: #b9b9c0; }
+  .pos { border-color: #33333a; }
+  .pos .t { color: #e9e9ec; }
+  .kpi { border-color: #33333a; }
+  .kpi .l { color: #8b8b92; }
+  .kpi .v { color: #e9e9ec; }
+  .chartbox { border-color: #33333a; }
+  .chartbox .t { color: #e9e9ec; }
+  .kimi-input, input[type="number"] { background: #17171b; border: 1px solid #33333a; color: #e9e9ec; }
+  .pnl.plus, .td-plus { color: #4cc274; }
+  .pnl.minus, .td-minus { color: #e0524a; }
+
+  #capital { background: #17171b; border: 1px solid #33333a; color: #e9e9ec; }
+  .tab { background: transparent; }
+  #cret { color: #e9e9ec !important; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="head">
-    <h1>Фьючерсы МосБиржи — календарный спред</h1>
     <span class="meta" id="upd">загрузка…</span>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -277,22 +308,22 @@ function drawEquity(points, dates){
   const step = Math.max(1, Math.ceil((mx-mn)/4));
   let grid='';
   for(let v=Math.ceil(mn/step)*step; v<=mx; v+=step){
-    grid+=`<line x1="${P.l}" y1="${y(v)}" x2="${W-P.r}" y2="${y(v)}" stroke="#eee" stroke-width="0.6"/>
-           <text x="${P.l-6}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="10" fill="#999" class="num">${v.toLocaleString('ru-RU')}</text>`;
+    grid+=`<line x1="${P.l}" y1="${y(v)}" x2="${W-P.r}" y2="${y(v)}" stroke="#232329" stroke-width="0.6"/>
+           <text x="${P.l-6}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="10" fill="#8b8b92" class="num">${v.toLocaleString('ru-RU')}</text>`;
   }
   const area = `${line} L${x(points.length-1).toFixed(1)},${zero} L${x(0).toFixed(1)},${zero} Z`;
-  const dots = points.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.8" fill="#fff" stroke="#2f6fed" stroke-width="1.6"/>`).join('');
+  const dots = points.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.8" fill="#0b0b0d" stroke="#4d8dff" stroke-width="1.6"/>`).join('');
   const lastV = points[points.length-1];
-  const lastLbl = `<text x="${(x(points.length-1)-4).toFixed(1)}" y="${(y(lastV)-8).toFixed(1)}" text-anchor="end" font-size="11" font-weight="600" fill="#1a1a1a" class="num">${lastV.toLocaleString('ru-RU')} ₽</text>`;
+  const lastLbl = `<text x="${(x(points.length-1)-4).toFixed(1)}" y="${(y(lastV)-8).toFixed(1)}" text-anchor="end" font-size="11" font-weight="600" fill="#e9e9ec" class="num">${lastV.toLocaleString('ru-RU')} ₽</text>`;
   const fmtD = ms => { const d=new Date(ms); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`; };
-  const xLbl = dates ? `<text x="${P.l}" y="${H-6}" font-size="10" fill="#999" class="num">${fmtD(dates[0])}</text>
-     <text x="${W-P.r}" y="${H-6}" text-anchor="end" font-size="10" fill="#999" class="num">${fmtD(dates[1])}</text>` : '';
+  const xLbl = dates ? `<text x="${P.l}" y="${H-6}" font-size="10" fill="#8b8b92" class="num">${fmtD(dates[0])}</text>
+     <text x="${W-P.r}" y="${H-6}" text-anchor="end" font-size="10" fill="#8b8b92" class="num">${fmtD(dates[1])}</text>` : '';
   svg.innerHTML = `
     <defs><clipPath id="clip"><rect x="${P.l}" y="${P.t}" width="${W-P.l-P.r}" height="${H-P.t-P.b}"/></clipPath></defs>
     ${grid}
-    <line x1="${P.l}" y1="${zero}" x2="${W-P.r}" y2="${zero}" stroke="#bbb" stroke-width="1"/>
-    <path d="${area}" fill="#2f6fed" opacity="0.10" clip-path="url(#clip)"/>
-    <path d="${line}" fill="none" stroke="#2f6fed" stroke-width="1.8" clip-path="url(#clip)"/>
+    <line x1="${P.l}" y1="${zero}" x2="${W-P.r}" y2="${zero}" stroke="#55555e" stroke-width="1"/>
+    <path d="${area}" fill="#4d8dff" opacity="0.18" clip-path="url(#clip)"/>
+    <path d="${line}" fill="none" stroke="#4d8dff" stroke-width="1.8" clip-path="url(#clip)"/>
     <g clip-path="url(#clip)">${dots}</g>
     ${lastLbl}${xLbl}`;
 }
