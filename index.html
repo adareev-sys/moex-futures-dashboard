@@ -57,12 +57,10 @@
     <h1>Фьючерсы МосБиржи — календарный спред</h1>
     <span class="meta" id="upd">загрузка…</span>
   </div>
-  <div class="meta" id="scheme" style="margin-bottom:12px"></div>
   <div class="tabs" id="tabs"></div>
 
   <div id="mainview">
     <h2>Пары соседних контрактов</h2>
-    <div class="params" id="gparams"></div>
     <div class="tblwrap"><table>
       <thead><tr>
         <th>Пара</th><th class="r">Цена</th><th class="r">Объём</th>
@@ -71,12 +69,10 @@
       </tr></thead>
       <tbody id="pairs"></tbody>
     </table></div>
-    <div class="legend"><span class="dot" style="background:#bfe6cd"></span>сигнал открытия<span class="dot" style="background:#f5c6c4"></span>сигнал закрытия · спред и пороги в %</div>
     <div class="watchbar">
       <span id="wltext"></span>
-      <span class="meta">управление: файл watchlist.json в репозитории</span>
+      <span class="meta">фильтр Telegram: watchlist.json в репозитории</span>
     </div>
-    <h2 style="margin-top:18px">Открытые позиции</h2>
     <div id="positions"></div>
   </div>
 
@@ -116,6 +112,13 @@ function sp(n){ return n==null?'—':Number(n).toFixed(2); }
 function rub(n){ n=Math.round(n); return (n>=0?'+':'−')+Math.abs(n).toLocaleString('ru-RU'); }
 function dt(ms){ return ms?new Date(ms).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'; }
 
+const localWatch = new Set(JSON.parse(localStorage.getItem('moex_watch') || '[]'));
+function wlbar(){
+  document.getElementById('wltext').textContent = localWatch.size
+    ? `Следить: выбрано ${localWatch.size} пар (локально)`
+    : 'Следить: нет — по умолчанию все пары';
+}
+
 function renderTabs(){
   const el = document.getElementById('tabs');
   el.innerHTML = '';
@@ -134,7 +137,6 @@ function renderTabs(){
 function render(){
   renderTabs();
   document.getElementById('upd').textContent = 'обновлено ' + DATA.updatedAt + ' · курс ' + DATA.fx;
-  document.getElementById('scheme').textContent = DATA.scheme + ' · издержки ' + DATA.cost + ' ₽/круг';
   const isRep = cur==='_rep';
   document.getElementById('mainview').style.display = isRep?'none':'';
   document.getElementById('reportview').style.display = isRep?'':'none';
@@ -142,8 +144,6 @@ function render(){
 
   const g = DATA.groups.find(x=>x.key===cur);
   const fut = {}; g.futures.forEach(f=>fut[f.symbol]=f);
-  document.getElementById('gparams').textContent =
-    'пороги активного режима · СП: P78/P60, окно 40 ч, лимит 12 баров · ВОЛ: P85/P60, окно 120 ч, лимит 96 баров';
 
   const pb = document.getElementById('pairs'); pb.innerHTML='';
   g.pairs.forEach(p=>{
@@ -159,14 +159,14 @@ function render(){
       <td class="r num">${p.open==null?'—':p.open.toFixed(2)}</td>
       <td class="r num">${p.close==null?'—':p.close.toFixed(2)}</td>
       <td class="c"><span class="reg ${p.regime==='ВОЛ'?'reg-vola':''}">${p.regime}</span></td>
-      <td class="c">${p.watched?'✓':'—'}</td>`;
+      <td class="c"><input type="checkbox" style="width:15px;height:15px;accent-color:#1a1a1a;cursor:pointer" data-key="${g.key}:${p.a}|${p.b}" ${localWatch.has(g.key+':'+p.a+'|'+p.b)?'checked':''}></td>`;
     pb.appendChild(tr);
   });
-
-  const wl = DATA.watchlist || [];
-  document.getElementById('wltext').textContent = wl.length
-    ? `Уведомления Telegram: только выбранные пары (${wl.length})`
-    : 'Уведомления Telegram: все пары';
+  pb.querySelectorAll('input').forEach(cb=>{
+    cb.onchange=()=>{ cb.checked?localWatch.add(cb.dataset.key):localWatch.delete(cb.dataset.key);
+      localStorage.setItem('moex_watch', JSON.stringify([...localWatch])); wlbar(); };
+  });
+  wlbar();
 
   const box = document.getElementById('positions');
   const open = DATA.positions.open.filter(o=>o.group===g.key);
@@ -214,7 +214,8 @@ function renderReport(){
   const win = closed.length ? closed.filter(t=>t.pnlRub>0).length/closed.length : 0;
   const floatPnl = openAll.reduce((s,t)=>s+(t.floatRub||0),0);
   let cum=0, peak=0, dd=0;
-  const curve = closed.map(t=>{cum+=t.pnlRub; peak=Math.max(peak,cum); dd=Math.min(dd,cum-peak); return cum;});
+  const curve = [0, ...closed.map(t=>{cum+=t.pnlRub; peak=Math.max(peak,cum); dd=Math.min(dd,cum-peak); return cum;})];
+  const dates = closed.length ? [closed[0].entryTs, closed[closed.length-1].exitTs] : null;
   const capEl = document.getElementById('capital');
   const cap = Math.max(1, parseFloat(capEl.value) || 1000000);
   capEl.oninput = () => renderReport();
@@ -244,7 +245,7 @@ function renderReport(){
     kb.appendChild(d);
   });
 
-  drawEquity(curve.length?curve:[0]);
+  drawEquity(curve, dates);
 
   const tb = document.getElementById('trades'); tb.innerHTML='';
   const row = t => {
@@ -264,9 +265,9 @@ function renderReport(){
   [...closed].reverse().forEach(t=>row({...t, status:'закрыта · '+t.reason}));
 }
 
-function drawEquity(points){
+function drawEquity(points, dates){
   const svg = document.getElementById('equity');
-  const W=600, H=170, P={l:56,r:10,t:8,b:18};
+  const W=600, H=170, P={l:56,r:14,t:14,b:24};
   let mn=Math.min(0,...points), mx=Math.max(0,...points);
   if(mx===mn){mx=mn+1;}
   const x=i=>P.l+(W-P.l-P.r)*(points.length===1?0.5:i/(points.length-1));
@@ -280,13 +281,20 @@ function drawEquity(points){
            <text x="${P.l-6}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="10" fill="#999" class="num">${v.toLocaleString('ru-RU')}</text>`;
   }
   const area = `${line} L${x(points.length-1).toFixed(1)},${zero} L${x(0).toFixed(1)},${zero} Z`;
+  const dots = points.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.8" fill="#fff" stroke="#2f6fed" stroke-width="1.6"/>`).join('');
+  const lastV = points[points.length-1];
+  const lastLbl = `<text x="${(x(points.length-1)-4).toFixed(1)}" y="${(y(lastV)-8).toFixed(1)}" text-anchor="end" font-size="11" font-weight="600" fill="#1a1a1a" class="num">${lastV.toLocaleString('ru-RU')} ₽</text>`;
+  const fmtD = ms => { const d=new Date(ms); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`; };
+  const xLbl = dates ? `<text x="${P.l}" y="${H-6}" font-size="10" fill="#999" class="num">${fmtD(dates[0])}</text>
+     <text x="${W-P.r}" y="${H-6}" text-anchor="end" font-size="10" fill="#999" class="num">${fmtD(dates[1])}</text>` : '';
   svg.innerHTML = `
     <defs><clipPath id="clip"><rect x="${P.l}" y="${P.t}" width="${W-P.l-P.r}" height="${H-P.t-P.b}"/></clipPath></defs>
     ${grid}
     <line x1="${P.l}" y1="${zero}" x2="${W-P.r}" y2="${zero}" stroke="#bbb" stroke-width="1"/>
     <path d="${area}" fill="#2f6fed" opacity="0.10" clip-path="url(#clip)"/>
     <path d="${line}" fill="none" stroke="#2f6fed" stroke-width="1.8" clip-path="url(#clip)"/>
-    ${points.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.4" fill="#2f6fed"/>`).join('')}`;
+    <g clip-path="url(#clip)">${dots}</g>
+    ${lastLbl}${xLbl}`;
 }
 
 fetch('data.json').then(r=>r.json()).then(d=>{
