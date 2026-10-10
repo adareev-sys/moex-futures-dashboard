@@ -218,8 +218,17 @@ function renderReport(){
   const capEl = document.getElementById('capital');
   const cap = Math.max(1, parseFloat(capEl.value) || 1000000);
   capEl.oninput = () => renderReport();
-  const ret = net / cap * 100;
-  document.getElementById('cret').textContent = 'Доходность за период: ' + (ret>=0?'+':'') + ret.toFixed(2) + '%';
+  // капитал на начало выбранного периода = ввод + результат всех сделок до его начала
+  const b0 = baseDate();
+  const startTs = repFilter==='day' ? new Date(b0.getFullYear(), b0.getMonth(), b0.getDate()).getTime()
+                : repFilter==='week' ? b0.getTime() - 6*864e5
+                : repFilter==='month' ? new Date(b0.getFullYear(), b0.getMonth(), 1).getTime()
+                : null;
+  const priorNet = (DATA.positions.closed||[]).reduce((s,t)=>s+((startTs==null || t.entryTs<startTs)?t.pnlRub:0),0);
+  const capStart = cap + priorNet;
+  const ret = net / capStart * 100;
+  document.getElementById('cret').textContent = 'Доходность за период: ' + (ret>=0?'+':'') + ret.toFixed(2) +
+    '% (база: ' + Math.round(capStart).toLocaleString('ru-RU') + ' ₽)';
   const kdata = [
     ['Закрыто сделок', closed.length],
     ['Рейтинг', Math.round(win*100)+'%'],
